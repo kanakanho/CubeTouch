@@ -8,7 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		EB8E3BCC2F835D3600EBC667 /* RealityKitContent in Frameworks */ = {isa = PBXBuildFile; productRef = EB8E3BCB2F835D3600EBC667 /* RealityKitContent */; };
-		EB8E3BEF2F835D4B00EBC667 /* ImmersiveRPCKit in Frameworks */ = {isa = PBXBuildFile; productRef = EB8E3BEE2F835D4B00EBC667 /* ImmersiveRPCKit */; };
+		EB8E3C502F83A41F00EBC667 /* ImmersiveRPCKit in Frameworks */ = {isa = PBXBuildFile; productRef = EB8E3C4F2F83A41F00EBC667 /* ImmersiveRPCKit */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -59,7 +59,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				EB8E3BCC2F835D3600EBC667 /* RealityKitContent in Frameworks */,
-				EB8E3BEF2F835D4B00EBC667 /* ImmersiveRPCKit in Frameworks */,
+				EB8E3C502F83A41F00EBC667 /* ImmersiveRPCKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -121,7 +121,7 @@
 			name = CubeTouch;
 			packageProductDependencies = (
 				EB8E3BCB2F835D3600EBC667 /* RealityKitContent */,
-				EB8E3BEE2F835D4B00EBC667 /* ImmersiveRPCKit */,
+				EB8E3C4F2F83A41F00EBC667 /* ImmersiveRPCKit */,
 			);
 			productName = CubeTouch;
 			productReference = EB8E3BC62F835D3600EBC667 /* CubeTouch.app */;
@@ -179,7 +179,7 @@
 			mainGroup = EB8E3BBD2F835D3600EBC667;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				EB8E3BED2F835D4B00EBC667 /* XCRemoteSwiftPackageReference "ImmersiveRPCKit" */,
+				EB8E3C4E2F83A41F00EBC667 /* XCLocalSwiftPackageReference "../ImmersiveRPCKit" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = EB8E3BC72F835D3600EBC667 /* Products */;
@@ -492,25 +492,20 @@
 		};
 /* End XCConfigurationList section */
 
-/* Begin XCRemoteSwiftPackageReference section */
-		EB8E3BED2F835D4B00EBC667 /* XCRemoteSwiftPackageReference "ImmersiveRPCKit" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/kanakanho/ImmersiveRPCKit.git";
-			requirement = {
-				branch = main;
-				kind = branch;
-			};
+/* Begin XCLocalSwiftPackageReference section */
+		EB8E3C4E2F83A41F00EBC667 /* XCLocalSwiftPackageReference "../ImmersiveRPCKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../ImmersiveRPCKit;
 		};
-/* End XCRemoteSwiftPackageReference section */
+/* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
 		EB8E3BCB2F835D3600EBC667 /* RealityKitContent */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = RealityKitContent;
 		};
-		EB8E3BEE2F835D4B00EBC667 /* ImmersiveRPCKit */ = {
+		EB8E3C4F2F83A41F00EBC667 /* ImmersiveRPCKit */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = EB8E3BED2F835D4B00EBC667 /* XCRemoteSwiftPackageReference "ImmersiveRPCKit" */;
 			productName = ImmersiveRPCKit;
 		};
 /* End XCSwiftPackageProductDependency section */

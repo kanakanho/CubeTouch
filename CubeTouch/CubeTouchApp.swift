@@ -2,9 +2,10 @@
 //  CubeTouchApp.swift
 //  CubeTouch
 //
-//  Created by blueken on 2026/04/06.
+//  Created by kanakanho on 2026/04/06.
 //
 
+import ImmersiveRPCKit
 import SwiftUI
 
 @main
@@ -16,18 +17,29 @@ struct CubeTouchApp: App {
         WindowGroup {
             ContentView()
                 .environment(appModel)
+                .onAppear {
+                    appModel.startNetworking()
+                }
+                .onDisappear {
+                    appModel.stopNetworking()
+                }
         }
 
         ImmersiveSpace(id: appModel.immersiveSpaceID) {
-            ImmersiveView()
-                .environment(appModel)
-                .onAppear {
-                    appModel.immersiveSpaceState = .open
-                }
-                .onDisappear {
-                    appModel.immersiveSpaceState = .closed
-                }
+            SharedCoordinateImmersiveView(
+                rpcModel: appModel.rpcModel,
+                coordinateTransforms: appModel.coordinateTransforms
+            ) {
+                ImmersiveView()
+                    .environment(appModel)
+                    .onAppear {
+                        appModel.immersiveSpaceState = .open
+                    }
+                    .onDisappear {
+                        appModel.immersiveSpaceState = .closed
+                    }
+            }
         }
         .immersionStyle(selection: .constant(.mixed), in: .mixed)
-     }
+    }
 }

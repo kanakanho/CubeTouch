@@ -2,6 +2,15 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_CubeGame._tcp</string>
+		<string>_CubeGame._udp</string>
+	</array>
+	<key>NSHandsTrackingUsageDescription</key>
+	<string>座標共有のために手の位置を使用します</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>近くのデバイスと通信するために使用します</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationPreferredDefaultSceneSessionRole</key>

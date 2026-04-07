@@ -2,7 +2,7 @@
 //  ToggleImmersiveSpaceButton.swift
 //  CubeTouch
 //
-//  Created by blueken on 2026/04/06.
+//  Created by kanakanho on 2026/04/06.
 //
 
 import SwiftUI
@@ -21,9 +21,9 @@ struct ToggleImmersiveSpaceButton: View {
                     case .open:
                         appModel.immersiveSpaceState = .inTransition
                         await dismissImmersiveSpace()
-                        // Don't set immersiveSpaceState to .closed because there
-                        // are multiple paths to ImmersiveView.onDisappear().
-                        // Only set .closed in ImmersiveView.onDisappear().
+                    // Don't set immersiveSpaceState to .closed because there
+                    // are multiple paths to ImmersiveView.onDisappear().
+                    // Only set .closed in ImmersiveView.onDisappear().
 
                     case .closed:
                         appModel.immersiveSpaceState = .inTransition
