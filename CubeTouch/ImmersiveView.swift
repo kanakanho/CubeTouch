@@ -5,30 +5,63 @@
 //  Created by kanakanho on 2026/04/06.
 //
 
+import ARKit
 import RealityKit
 import RealityKitContent
 import SwiftUI
 
 struct ImmersiveView: View {
     @Environment(AppModel.self) private var appModel
-
-    @State private var rootEntity = Entity()
-    @State private var entityByID: [UUID: ModelEntity] = [:]
-    @State private var despawnTaskByID: [UUID: Task<Void, Never>] = [:]
-    @State private var trackingSession: SpatialTrackingSession?
     @State private var collisionSubscriptions: [EventSubscription] = []
+
+    @State var session = ARKitSession()
+    @State var handTracking = HandTrackingProvider()
+    @State var sceneReconstruction = SceneReconstructionProvider()
+    @State var latestRightIndexFingerPos: SIMD3<Float> = .init()
+    @State var latestLeftIndexFingerPos: SIMD3<Float> = .init()
+
+    @State var rightSensor = Entity()
+    @State var leftSensor = Entity()
+
+    @State var sceneMeshRootEntity = Entity()
+    @State var sceneMeshEntities: [UUID: ModelEntity] = [:]
 
     var body: some View {
         RealityView { content in
-            content.add(rootEntity)
+            do {
+                let scene: Entity = try await Entity(named: "Scene", in: realityKitContentBundle)
+                if let ball = scene.findEntity(named: "Sphere") {
+                    rightSensor = ball.clone(recursive: false)
+                    leftSensor = ball.clone(recursive: false)
+
+                    rightSensor.name = "hand-sensor-right"
+                    leftSensor.name = "hand-sensor-left"
+
+                    content.add(rightSensor)
+                    content.add(leftSensor)
+                }
+            } catch {
+                print("Failed to load scene: \(error)")
+            }
+
+            appModel.cubeHandler.rootEntity.initCollision()
+            content.add(appModel.cubeHandler.rootEntity)
+
+            content.add(appModel.sceneMeshRootEntity)
 
             await configureHandCollisionSensors(content: content)
         }
-        .onAppear {
-            syncCubes(with: appModel.cubes)
+        .task {
+            do {
+                try await session.run([handTracking, sceneReconstruction])
+
+                await processHandUpdates()
+            } catch {
+                print("Failed to start session: \(error)")
+            }
         }
-        .onChange(of: cubeIDs) {
-            syncCubes(with: appModel.cubes)
+        .task(priority: .low) {
+            await processReconstructionUpdates()
         }
         .task {
             while !Task.isCancelled {
@@ -36,160 +69,96 @@ struct ImmersiveView: View {
                 appModel.checkGameTimeout()
             }
         }
-        .onDisappear {
-            cancelAllDespawnTasks()
-        }
-    }
-
-    private var cubeIDs: Set<UUID> {
-        Set(appModel.cubes.keys)
-    }
-
-    private func syncCubes(with cubes: [UUID: CubeHandler.CubeState]) {
-        for (cubeID, cube) in cubes where entityByID[cubeID] == nil {
-            let model = makeCubeEntity(cube: cube)
-            entityByID[cubeID] = model
-            rootEntity.addChild(model)
-            scheduleDespawn(for: cube)
-        }
-
-        let activeIDs = Set(cubes.keys)
-        let removedIDs = entityByID.keys.filter { !activeIDs.contains($0) }
-        for id in removedIDs {
-            despawnTaskByID[id]?.cancel()
-            despawnTaskByID.removeValue(forKey: id)
-            entityByID.removeValue(forKey: id)?.removeFromParent()
-        }
-    }
-
-    private func scheduleDespawn(for cube: CubeHandler.CubeState) {
-        despawnTaskByID[cube.id]?.cancel()
-
-        let elapsed = max(0, Date().timeIntervalSince(cube.spawnTime))
-        let remaining = max(0, appModel.growDuration + appModel.displayDuration - elapsed)
-        let cubeID = cube.id
-
-        despawnTaskByID[cubeID] = Task {
-            try? await Task.sleep(for: .seconds(remaining))
-            guard !Task.isCancelled else {
-                return
-            }
-            appModel.despawnCube(id: cubeID)
-        }
-    }
-
-    private func cancelAllDespawnTasks() {
-        for (_, task) in despawnTaskByID {
-            task.cancel()
-        }
-        despawnTaskByID.removeAll()
     }
 
     private func configureHandCollisionSensors(content: RealityViewContent) async {
-        if trackingSession == nil {
-            let session = SpatialTrackingSession()
-            let configuration = SpatialTrackingSession.Configuration(tracking: [.hand])
-            _ = await session.run(configuration)
-            trackingSession = session
-        }
+        guard collisionSubscriptions.isEmpty else { return }
 
-        guard collisionSubscriptions.isEmpty else {
-            return
-        }
+        setupHandSensor(content: content)
+    }
 
-        let rightSensor = makeHandSensor(name: "hand-sensor-right")
-        let rightAnchor = AnchorEntity(.hand(.right, location: .indexFingerTip), trackingMode: .predicted)
-        rightAnchor.addChild(rightSensor)
-        rootEntity.addChild(rightAnchor)
-
-        let leftSensor = makeHandSensor(name: "hand-sensor-left")
-        let leftAnchor = AnchorEntity(.hand(.left, location: .indexFingerTip), trackingMode: .predicted)
-        leftAnchor.addChild(leftSensor)
-        rootEntity.addChild(leftAnchor)
-
-        let rightSubscription = content.subscribe(to: CollisionEvents.Began.self, on: rightSensor) { event in
+    private func setupHandSensor(content: RealityViewContent) {
+        let sub = content.subscribe(to: CollisionEvents.Began.self) { event in
             handleCollision(event)
         }
-        let leftSubscription = content.subscribe(to: CollisionEvents.Began.self, on: leftSensor) { event in
-            handleCollision(event)
-        }
-
-        collisionSubscriptions.append(rightSubscription)
-        collisionSubscriptions.append(leftSubscription)
+        collisionSubscriptions.append(sub)
     }
 
     private func handleCollision(_ event: CollisionEvents.Began) {
-        if let cubeID = cubeID(from: event.entityA.name) {
-            appModel.touchCube(cubeId: cubeID)
-            return
-        }
-
-        if let cubeID = cubeID(from: event.entityB.name) {
+        // 衝突した相手が cube-UUID 形式の名前を持っているかチェック
+        if let cubeID = extractCubeID(from: event.entityA.name) ?? extractCubeID(from: event.entityB.name) {
             appModel.touchCube(cubeId: cubeID)
         }
     }
 
-    private func makeCubeEntity(cube: CubeHandler.CubeState) -> ModelEntity {
-        let mesh = MeshResource.generateBox(size: 1.0)
-        let material = SimpleMaterial(color: color(for: cube.colorName), roughness: 0.4, isMetallic: false)
-        let entity = ModelEntity(mesh: mesh, materials: [material])
-        entity.name = "cube-\(cube.id.uuidString)"
-        entity.position = cube.position
-        let elapsed = max(0, Date().timeIntervalSince(cube.spawnTime))
-        let clampedGrowDuration = max(0.0001, appModel.growDuration)
-        let progress = min(1, elapsed / clampedGrowDuration)
-        let currentScale = Float(0.01 + (1.0 - 0.01) * progress)
-        entity.scale = .one * currentScale
-        entity.components.set(InputTargetComponent())
-        entity.components.set(CollisionComponent(shapes: [.generateBox(size: [1, 1, 1])]))
-
-        let remaining = max(0, clampedGrowDuration - elapsed)
-        if remaining > 0 {
-            var targetTransform = entity.transform
-            targetTransform.scale = .one
-            entity.move(
-                to: targetTransform,
-                relativeTo: entity.parent,
-                duration: remaining,
-                timingFunction: .linear
-            )
-        }
-
-        return entity
-    }
-
-    private func makeHandSensor(name: String) -> Entity {
-        let sensor = Entity()
-        sensor.name = name
-        sensor.components.set(CollisionComponent(shapes: [.generateSphere(radius: 0.02)], mode: .trigger, filter: .default))
-        return sensor
-    }
-
-    private func cubeID(from name: String) -> UUID? {
-        guard name.hasPrefix("cube-") else {
-            return nil
-        }
+    private func extractCubeID(from name: String) -> UUID? {
+        guard name.hasPrefix("cube-") else { return nil }
         return UUID(uuidString: String(name.dropFirst(5)))
     }
 
-    private func color(for colorName: String) -> UIColor {
-        switch colorName.lowercased() {
-            case "red":
-                return .red
-            case "blue":
-                return .blue
-            case "green":
-                return .green
-            case "yellow":
-                return .yellow
-            case "orange":
-                return .orange
-            case "purple":
-                return .purple
-            case "white":
-                return .white
-            default:
-                return .gray
+    @MainActor
+    func processHandUpdates() async {
+        for await update in handTracking.anchorUpdates {
+            switch update.event {
+                case .updated:
+                    if appModel.gameHandler.gameState != .running { continue }
+
+                    let anchor = update.anchor
+
+                    guard anchor.isTracked else { continue }
+
+                    let fingerTipIndex = anchor.handSkeleton?.joint(.indexFingerTip)
+                    let originFromWrist = anchor.originFromAnchorTransform
+                    let wristFromIndex = fingerTipIndex?.anchorFromJointTransform
+                    let originFromIndex = originFromWrist * wristFromIndex!
+
+                    if anchor.chirality == .left {
+                        let leftHandAnchor = anchor
+                        guard let handSkeletonAnchorTransform = leftHandAnchor.handSkeleton?.joint(.indexFingerTip).anchorFromJointTransform else { return }
+                        latestLeftIndexFingerPos = (leftHandAnchor.originFromAnchorTransform * handSkeletonAnchorTransform).position
+                        leftSensor.setTransformMatrix(originFromIndex, relativeTo: nil)
+                    } else if anchor.chirality == .right {
+                        let rightHandAnchor = anchor
+                        guard let handSkeletonAnchorTransform = rightHandAnchor.handSkeleton?.joint(.indexFingerTip).anchorFromJointTransform else { return }
+                        latestRightIndexFingerPos = (rightHandAnchor.originFromAnchorTransform * handSkeletonAnchorTransform).position
+                        rightSensor.setTransformMatrix(originFromIndex, relativeTo: nil)
+                    }
+                default:
+                    break
+            }
+        }
+    }
+
+    @MainActor
+    func processReconstructionUpdates() async {
+        for await update in sceneReconstruction.anchorUpdates {
+            let meshAnchor = update.anchor
+
+            guard let shape = try? await ShapeResource.generateStaticMesh(from: meshAnchor) else { continue }
+            switch update.event {
+                case .added:
+                    let cyanMaterial: SimpleMaterial = .init(color: .cyan, isMetallic: false)
+                    //                let mesh = await MeshResource(shape: shape)
+                    let sceneMeshEntity = ModelEntity(mesh: .generateBox(size: 0.0), materials: [cyanMaterial])
+
+                    sceneMeshEntity.transform = Transform(matrix: meshAnchor.originFromAnchorTransform)
+                    sceneMeshEntity.collision = CollisionComponent(shapes: [shape], isStatic: true)
+                    sceneMeshEntity.components.set(InputTargetComponent())
+
+                    // mode が dynamic でないと物理演算が適用されない
+                    sceneMeshEntity.physicsBody = PhysicsBodyComponent(mode: .dynamic)
+
+                    sceneMeshEntities[meshAnchor.id] = sceneMeshEntity
+                    appModel.sceneMeshRootEntity.addChild(sceneMeshEntity)
+                case .updated:
+                    guard let sceneMeshEntity = sceneMeshEntities[meshAnchor.id] else { continue }
+                    sceneMeshEntity.transform = Transform(matrix: meshAnchor.originFromAnchorTransform)
+                    sceneMeshEntity.collision?.shapes = [shape]
+                //                sceneMeshEntity.model?.mesh = .generateBox(size: 0.0)
+                case .removed:
+                    sceneMeshEntities[meshAnchor.id]?.removeFromParent()
+                    sceneMeshEntities.removeValue(forKey: meshAnchor.id)
+            }
         }
     }
 }

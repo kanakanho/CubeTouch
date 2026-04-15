@@ -8,6 +8,7 @@
 import Foundation
 import ImmersiveRPCKit
 import Observation
+import RealityKit
 import SwiftUI
 import simd
 
@@ -29,13 +30,11 @@ class AppModel {
         get { gameHandler.gameDuration }
         set { gameHandler.gameDuration = newValue }
     }
-    var growDuration: TimeInterval = 12
-    var displayDuration: TimeInterval = 2
 
     var gameState: GameHandler.GameState { gameHandler.gameState }
     var gameStartedAt: Date? { gameHandler.gameStartedAt }
-    var playerColors: [Int: String] { gameHandler.playerColors }
-    var currentPlayerColorName: String { playerColors[myPlayerId] ?? "red" }
+    var playerColors: [Int: CubeColor] { gameHandler.playerColors }
+    var currentPlayerColor: CubeColor { playerColors[myPlayerId] ?? .red }
     var cubes: [UUID: CubeHandler.CubeState] { cubeHandler.cubes }
     var scores: [Int: Int] { scoreHandler.scores }
 
@@ -50,6 +49,8 @@ class AppModel {
     let gameHandler: GameHandler
     let cubeHandler: CubeHandler
     let scoreHandler: ScoreHandler
+
+    var sceneMeshRootEntity: Entity = Entity()
 
     init() {
         gameHandler = GameHandler()
@@ -75,6 +76,10 @@ class AppModel {
             ]
         )
 
+        rpcModel.affineMatrixProvider = { peerId in
+            self.coordinateTransforms.affineMatrixs[peerId]
+        }
+        rpcModel.isLogging = true
     }
 
     var myPlayerId: Int {
@@ -108,7 +113,7 @@ class AppModel {
         guard isStartCoordinator else {
             return
         }
-        
+
         print("start game")
 
         let assignedColors = makePlayerColorAssignments()
@@ -120,17 +125,21 @@ class AppModel {
         rpcModel.run(syncAll: CubeEntity.request(.resetCubes))
         rpcModel.run(syncAll: ScoreEntity.request(.resetScore))
         rpcModel.run(syncAll: GameEntity.request(.startGame(payload)))
-        
+
         print("game started")
 
         let firstCube = CubeHandler.SpawnCubeData(
             id: UUID(),
-            position: randomCubePosition(),
-            colorName: assignedColors[startCoordinatorPeerId ?? myPlayerId] ?? "red",
-            spawnTime: Date()
+            position: safeSpawnPosition(),
+            color: assignedColors[startCoordinatorPeerId ?? myPlayerId] ?? .red,
         )
-        rpcModel.run(transforming: .all, CubeEntity.self, .spawnCube(firstCube))
-        
+        let rpcResults = rpcModel.run(transforming: .all, CubeEntity.self, .spawnCube(firstCube))
+        rpcResults.forEach { result in
+            if case .failure(let e) = result {
+                print("Failed to spawn cube: \(e)")
+            }
+        }
+
         print("cube spawned")
     }
 
@@ -153,30 +162,24 @@ class AppModel {
         guard let cube = cubes[cubeId] else {
             return
         }
-        guard cube.colorName == currentPlayerColorName else {
+        guard cube.color == currentPlayerColor else {
             return
         }
 
-        guard cubeHandler.canAcceptTouch(cubeId) else {
-            return
-        }
-
-        rpcModel.run(syncAll: CubeEntity.request(.touchCube(.init(id: cubeId, playerId: myPlayerId))))
         rpcModel.run(syncAll: CubeEntity.request(.despawnCube(.init(id: cubeId))))
         rpcModel.run(syncAll: ScoreEntity.request(.addScore(.init(playerId: myPlayerId))))
-        spawnCubeAfterTouch(with: currentPlayerColorName)
+        spawnCubeAfterTouch(with: currentPlayerColor)
     }
 
     func despawnCube(id: UUID) {
         rpcModel.run(syncAll: CubeEntity.request(.despawnCube(.init(id: id))))
     }
 
-    func spawnCubeAfterTouch(with colorName: String) {
+    func spawnCubeAfterTouch(with color: CubeColor) {
         let data = CubeHandler.SpawnCubeData(
             id: UUID(),
-            position: randomCubePosition(),
-            colorName: colorName,
-            spawnTime: Date()
+            position: safeSpawnPosition(),
+            color: color,
         )
         rpcModel.run(transforming: .all, CubeEntity.self, .spawnCube(data))
     }
@@ -190,17 +193,54 @@ class AppModel {
         }
     }
 
+    func safeSpawnPosition() -> SIMD3<Float> {
+        let maxSpawnAttempts = 8
+
+        for _ in 0..<maxSpawnAttempts {
+            let candidate = randomCubePosition()
+
+            let radomXZ: SIMD3<Float> = .init(
+                candidate.x,
+                2.0,
+                candidate.z
+            )
+
+            // カメラ → 候補位置 の方向
+            let direction = normalize(candidate - radomXZ)
+            let distance = length(candidate - radomXZ)
+
+            // SceneMeshのCollisionComponentに対してRaycast
+            let rayOrigin = radomXZ
+            let hits = sceneMeshRootEntity.scene?.raycast(
+                origin: rayOrigin,
+                direction: direction,
+                length: distance,
+                query: .nearest,
+                mask: .all
+            )
+
+            // ヒットなし = 視線が通っている = 安全
+            if hits?.isEmpty == true {
+                return candidate
+            }
+
+            print("💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥💥")
+        }
+
+        return randomCubePosition()
+    }
+
     private func randomCubePosition() -> SIMD3<Float> {
         SIMD3<Float>(
-            Float.random(in: -0.8...0.8),
-            Float.random(in: 0.1...1.6),
-            Float.random(in: -0.8 ... 0.8)
+            Float.random(in: -0.4...0.4),
+            Float.random(in: 0.1...0.4),
+            Float.random(in: -0.4...0.4)
         )
     }
 
-    private func makePlayerColorAssignments() -> [Int: String] {
-        let colors = ["red", "blue", "green", "yellow", "orange", "purple"]
-        var result: [Int: String] = [:]
+    private func makePlayerColorAssignments() -> [Int: CubeColor] {
+        let colors: [CubeColor] = [.red, .blue, .green, .yellow, .orange, .purple]
+        var result: [Int: CubeColor] = [:]
 
         for (index, peerId) in sortedPeerIDs.enumerated() {
             result[peerId] = colors[index % colors.count]
