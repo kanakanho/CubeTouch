@@ -19,7 +19,7 @@ class GameHandler {
 
     var gameState: GameState = .waiting
     var gameStartedAt: Date?
-    var gameDuration: TimeInterval = 120
+    var gameDuration: TimeInterval = 60
     var playerColors: [Int: CubeColor] = [:]
 
     struct GameStartData: Codable, Sendable {

@@ -76,9 +76,6 @@ class AppModel {
             ]
         )
 
-        rpcModel.affineMatrixProvider = { peerId in
-            self.coordinateTransforms.affineMatrixs[peerId]
-        }
         rpcModel.isLogging = true
     }
 
@@ -128,19 +125,23 @@ class AppModel {
 
         print("game started")
 
-        let firstCube = CubeHandler.SpawnCubeData(
-            id: UUID(),
-            position: safeSpawnPosition(),
-            color: assignedColors[startCoordinatorPeerId ?? myPlayerId] ?? .red,
-        )
-        let rpcResults = rpcModel.run(transforming: .all, CubeEntity.self, .spawnCube(firstCube))
-        rpcResults.forEach { result in
-            if case .failure(let e) = result {
-                print("Failed to spawn cube: \(e)")
+        let initialSeedColors = makeInitialSeedColors(from: assignedColors)
+
+        for color in initialSeedColors {
+            let seedCube = CubeHandler.SpawnCubeData(
+                id: UUID(),
+                position: safeSpawnPosition(),
+                color: color,
+            )
+            let rpcResults = rpcModel.run(transforming: .all, CubeEntity.self, .spawnCube(seedCube))
+            rpcResults.forEach { result in
+                if case .failure(let e) = result {
+                    print("Failed to spawn initial \(color) cube: \(e)")
+                }
             }
         }
 
-        print("cube spawned")
+        print("initial cubes spawned: \(initialSeedColors)")
     }
 
     func finishGame() {
@@ -232,9 +233,9 @@ class AppModel {
 
     private func randomCubePosition() -> SIMD3<Float> {
         SIMD3<Float>(
-            Float.random(in: -0.4...0.4),
-            Float.random(in: 0.1...0.4),
-            Float.random(in: -0.4...0.4)
+            Float.random(in: -2.4...2.4),
+            Float.random(in: 0.1...1.6),
+            Float.random(in: -2.4...2.4)
         )
     }
 
@@ -247,5 +248,18 @@ class AppModel {
         }
 
         return result
+    }
+
+    private func makeInitialSeedColors(from assignments: [Int: CubeColor]) -> [CubeColor] {
+        let orderedColors = sortedPeerIDs.compactMap { assignments[$0] }
+
+        var uniqueColors: [CubeColor] = []
+        for color in orderedColors {
+            if !uniqueColors.contains(color) {
+                uniqueColors.append(color)
+            }
+        }
+
+        return uniqueColors.isEmpty ? [.red] : uniqueColors
     }
 }
