@@ -138,7 +138,7 @@ struct ImmersiveView: View {
             switch update.event {
                 case .added:
                     let cyanMaterial: SimpleMaterial = .init(color: .cyan, isMetallic: false)
-                    //                let mesh = await MeshResource(shape: shape)
+//                    let mesh = await MeshResource(shape: shape)
                     let sceneMeshEntity = ModelEntity(mesh: .generateBox(size: 0.0), materials: [cyanMaterial])
 
                     sceneMeshEntity.transform = Transform(matrix: meshAnchor.originFromAnchorTransform)
@@ -154,7 +154,7 @@ struct ImmersiveView: View {
                     guard let sceneMeshEntity = sceneMeshEntities[meshAnchor.id] else { continue }
                     sceneMeshEntity.transform = Transform(matrix: meshAnchor.originFromAnchorTransform)
                     sceneMeshEntity.collision?.shapes = [shape]
-                //                sceneMeshEntity.model?.mesh = .generateBox(size: 0.0)
+//                    sceneMeshEntity.model?.mesh = await MeshResource(shape: shape)
                 case .removed:
                     sceneMeshEntities[meshAnchor.id]?.removeFromParent()
                     sceneMeshEntities.removeValue(forKey: meshAnchor.id)

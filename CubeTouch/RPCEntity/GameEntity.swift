@@ -20,10 +20,8 @@ class GameHandler {
     var gameState: GameState = .waiting
     var gameStartedAt: Date?
     var gameDuration: TimeInterval = 60
-    var playerColors: [Int: CubeColor] = [:]
 
     struct GameStartData: Codable, Sendable {
-        var playerColors: [Int: CubeColor]
         var startedAt: Date
         var durationSeconds: TimeInterval
     }
@@ -33,7 +31,6 @@ class GameHandler {
             return RPCResult("Game is already running")
         }
 
-        playerColors = payload.playerColors
         gameStartedAt = payload.startedAt
         gameDuration = payload.durationSeconds
         gameState = .running

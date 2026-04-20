@@ -41,8 +41,9 @@ struct ContentView: View {
                         .fontWeight(.semibold)
                     ForEach(appModel.scores.keys.sorted(), id: \.self) { playerId in
                         let score = appModel.scores[playerId, default: 0]
-                        let colorName = appModel.playerColors[playerId]?.rawValue ?? "-"
-                        Text("Player \(playerId): \(score) (\(colorName))")
+                        Text("Player \(playerId): \(score)")
+                            .font(.largeTitle)
+                            .fontWeight(.semibold)
                     }
                 }
             }
@@ -63,7 +64,7 @@ struct ContentView: View {
             case .waiting:
                 "待機中"
             case .running:
-                "ゲーム中 (あなたの色: \(appModel.currentPlayerColor.rawValue))"
+                "ゲーム中 (共通ターゲットキューブを取り合い中)"
             case .ended:
                 "ゲーム終了"
         }

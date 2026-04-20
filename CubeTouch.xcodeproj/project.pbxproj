@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		EB8E3BCC2F835D3600EBC667 /* RealityKitContent in Frameworks */ = {isa = PBXBuildFile; productRef = EB8E3BCB2F835D3600EBC667 /* RealityKitContent */; };
 		EB8E3C502F83A41F00EBC667 /* ImmersiveRPCKit in Frameworks */ = {isa = PBXBuildFile; productRef = EB8E3C4F2F83A41F00EBC667 /* ImmersiveRPCKit */; };
+		EBD1AA492F90DC41000E6ECF /* ImmersiveRPCKit in Frameworks */ = {isa = PBXBuildFile; productRef = EBD1AA482F90DC41000E6ECF /* ImmersiveRPCKit */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -59,6 +60,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				EB8E3BCC2F835D3600EBC667 /* RealityKitContent in Frameworks */,
+				EBD1AA492F90DC41000E6ECF /* ImmersiveRPCKit in Frameworks */,
 				EB8E3C502F83A41F00EBC667 /* ImmersiveRPCKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -122,6 +124,7 @@
 			packageProductDependencies = (
 				EB8E3BCB2F835D3600EBC667 /* RealityKitContent */,
 				EB8E3C4F2F83A41F00EBC667 /* ImmersiveRPCKit */,
+				EBD1AA482F90DC41000E6ECF /* ImmersiveRPCKit */,
 			);
 			productName = CubeTouch;
 			productReference = EB8E3BC62F835D3600EBC667 /* CubeTouch.app */;
@@ -179,7 +182,7 @@
 			mainGroup = EB8E3BBD2F835D3600EBC667;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				EB8E3C4E2F83A41F00EBC667 /* XCLocalSwiftPackageReference "../ImmersiveRPCKit" */,
+				EBD1AA472F90DC41000E6ECF /* XCLocalSwiftPackageReference "../ImmersiveRPCKit" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = EB8E3BC72F835D3600EBC667 /* Products */;
@@ -501,7 +504,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		EB8E3C4E2F83A41F00EBC667 /* XCLocalSwiftPackageReference "../ImmersiveRPCKit" */ = {
+		EBD1AA472F90DC41000E6ECF /* XCLocalSwiftPackageReference "../ImmersiveRPCKit" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = ../ImmersiveRPCKit;
 		};
@@ -513,6 +516,10 @@
 			productName = RealityKitContent;
 		};
 		EB8E3C4F2F83A41F00EBC667 /* ImmersiveRPCKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ImmersiveRPCKit;
+		};
+		EBD1AA482F90DC41000E6ECF /* ImmersiveRPCKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = ImmersiveRPCKit;
 		};

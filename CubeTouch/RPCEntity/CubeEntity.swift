@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import AudioToolbox
 import ImmersiveRPCKit
 import Observation
 import RealityKit
@@ -58,8 +59,50 @@ class CubeHandler {
 
     var cubes: [UUID: CubeState] = [:]
     private var despawnTasks: [UUID: Task<Void, Never>] = [:]
+    
+    var audioPlayerEntity = Entity()
+    private var despawnAudioResourceCache: [Int: AudioFileResource] = [:]
+
+    // Add audio files with these names to the app bundle.
+    private let playerDespawnSoundFiles: [String] = [
+        "Bell_Accent01-2(Dry).mp3",
+        "Bell_Accent03-1(Dry).mp3",
+        "Bell_Accent04-1(High-Dry).mp3",
+        "Bell_Accent06-1(Dry).mp3",
+        "Bell_Accent16-1(High).mp3",
+        "Inspiration02-1(High).mp3",
+        "Inspiration07-1(High).mp3",
+        "Inspiration08-1(Low).mp3",
+    ]
 
     var animationPlaybackController: AnimationPlaybackController? = nil
+    
+    init() {
+        preloadAudioFiles()
+    }
+    
+    private func preloadAudioFiles() {
+        let soundFiles = self.playerDespawnSoundFiles
+        
+        Task {
+            let loadedDict = await Task.detached(priority: .background) {
+                var tempResources: [Int: AudioFileResource] = [:]
+                
+                for (index, fileName) in soundFiles.enumerated() {
+                    if let resource = try? await AudioFileResource(named: fileName) {
+                        tempResources[index] = resource
+                    }
+                }
+                return tempResources
+            }.value
+
+            Task { @MainActor in
+                for (index, resource) in loadedDict {
+                    self.despawnAudioResourceCache[index] = resource
+                }
+            }
+        }
+    }
 
     struct SpawnCubeData: Codable, Sendable {
         var id: UUID
@@ -100,21 +143,55 @@ class CubeHandler {
         )
 
         print("Cube spawned: \(payload.id)")
+        
+        audioPlayerEntity.position = payload.position
+        audioPlayerEntity.spatialAudio = SpatialAudioComponent()
+        rootEntity.addChild(audioPlayerEntity)
 
         return RPCResult()
     }
 
     struct DespawnCubeData: Codable, Sendable {
         var id: UUID
+        var playerId: Int
     }
 
     func despawnCube(_ payload: DespawnCubeData) -> RPCResult {
         if let state = cubes.removeValue(forKey: payload.id) {
+            playDespawnSound(for: payload.playerId, at: state.position)
+
             state.entity.removeFromParent()
             despawnTasks[payload.id]?.cancel()
             despawnTasks.removeValue(forKey: payload.id)
         }
         return RPCResult()
+    }
+
+    private func playDespawnSound(for playerId: Int, at position: SIMD3<Float>) {
+        let soundIndex = Int(UInt(bitPattern: playerId) % UInt(playerDespawnSoundFiles.count))
+
+        if let resource = despawnAudioResource(for: soundIndex) {
+            audioPlayerEntity.playAudio(resource)
+
+            Task { @MainActor [weak audioPlayerEntity] in
+                try? await Task.sleep(for: .seconds(1.5))
+                audioPlayerEntity?.removeFromParent()
+            }
+            return
+        }
+    }
+
+    private func despawnAudioResource(for soundIndex: Int) -> AudioFileResource? {
+        if let cached = despawnAudioResourceCache[soundIndex] {
+            return cached
+        }
+
+        guard playerDespawnSoundFiles.indices.contains(soundIndex) else {
+            return nil
+        }
+
+        let resource = despawnAudioResourceCache[soundIndex]
+        return resource
     }
 
     struct TouchCubeData: Codable, Sendable {
@@ -170,6 +247,7 @@ struct CubeEntity: RPCEntity {
         func applying(affineMatrix: simd_float4x4) -> Self {
             switch self {
                 case .spawnCube(let payload):
+                    print("Applying transformation to spawnCube with id: \(payload.id)" + ", original position: \(payload.position)" + ", affineMatrix: \(affineMatrix)")
                     let transformed = affineMatrix * simd_float4(payload.position, 1)
                     return .spawnCube(
                         .init(

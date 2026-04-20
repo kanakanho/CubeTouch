@@ -33,8 +33,6 @@ class AppModel {
 
     var gameState: GameHandler.GameState { gameHandler.gameState }
     var gameStartedAt: Date? { gameHandler.gameStartedAt }
-    var playerColors: [Int: CubeColor] { gameHandler.playerColors }
-    var currentPlayerColor: CubeColor { playerColors[myPlayerId] ?? .red }
     var cubes: [UUID: CubeHandler.CubeState] { cubeHandler.cubes }
     var scores: [Int: Int] { scoreHandler.scores }
 
@@ -95,6 +93,8 @@ class AppModel {
         startCoordinatorPeerId == myPlayerId
     }
 
+    private let sharedTargetCubeColor: CubeColor = .cyan
+
     func startNetworking() {
         peerManager.start()
     }
@@ -113,9 +113,7 @@ class AppModel {
 
         print("start game")
 
-        let assignedColors = makePlayerColorAssignments()
         let payload = GameHandler.GameStartData(
-            playerColors: assignedColors,
             startedAt: Date(),
             durationSeconds: gameDuration
         )
@@ -125,23 +123,9 @@ class AppModel {
 
         print("game started")
 
-        let initialSeedColors = makeInitialSeedColors(from: assignedColors)
+        spawnSharedTargetCube()
 
-        for color in initialSeedColors {
-            let seedCube = CubeHandler.SpawnCubeData(
-                id: UUID(),
-                position: safeSpawnPosition(),
-                color: color,
-            )
-            let rpcResults = rpcModel.run(transforming: .all, CubeEntity.self, .spawnCube(seedCube))
-            rpcResults.forEach { result in
-                if case .failure(let e) = result {
-                    print("Failed to spawn initial \(color) cube: \(e)")
-                }
-            }
-        }
-
-        print("initial cubes spawned: \(initialSeedColors)")
+        print("initial shared target cube spawned")
     }
 
     func finishGame() {
@@ -160,20 +144,17 @@ class AppModel {
         guard gameState == .running else {
             return
         }
-        guard let cube = cubes[cubeId] else {
-            return
-        }
-        guard cube.color == currentPlayerColor else {
+        guard cubes[cubeId] != nil else {
             return
         }
 
-        rpcModel.run(syncAll: CubeEntity.request(.despawnCube(.init(id: cubeId))))
+        despawnCube(id: cubeId)
         rpcModel.run(syncAll: ScoreEntity.request(.addScore(.init(playerId: myPlayerId))))
-        spawnCubeAfterTouch(with: currentPlayerColor)
+        spawnSharedTargetCube()
     }
 
     func despawnCube(id: UUID) {
-        rpcModel.run(syncAll: CubeEntity.request(.despawnCube(.init(id: id))))
+        rpcModel.run(syncAll: CubeEntity.request(.despawnCube(.init(id: id, playerId: myPlayerId))))
     }
 
     func spawnCubeAfterTouch(with color: CubeColor) {
@@ -183,6 +164,10 @@ class AppModel {
             color: color,
         )
         rpcModel.run(transforming: .all, CubeEntity.self, .spawnCube(data))
+    }
+
+    func spawnSharedTargetCube() {
+        spawnCubeAfterTouch(with: sharedTargetCubeColor)
     }
 
     func checkGameTimeout(now: Date = Date()) {
@@ -239,27 +224,4 @@ class AppModel {
         )
     }
 
-    private func makePlayerColorAssignments() -> [Int: CubeColor] {
-        let colors: [CubeColor] = [.red, .blue, .green, .yellow, .orange, .purple]
-        var result: [Int: CubeColor] = [:]
-
-        for (index, peerId) in sortedPeerIDs.enumerated() {
-            result[peerId] = colors[index % colors.count]
-        }
-
-        return result
-    }
-
-    private func makeInitialSeedColors(from assignments: [Int: CubeColor]) -> [CubeColor] {
-        let orderedColors = sortedPeerIDs.compactMap { assignments[$0] }
-
-        var uniqueColors: [CubeColor] = []
-        for color in orderedColors {
-            if !uniqueColors.contains(color) {
-                uniqueColors.append(color)
-            }
-        }
-
-        return uniqueColors.isEmpty ? [.red] : uniqueColors
-    }
 }
