@@ -2,10 +2,11 @@
 //  CubeTouchTests.swift
 //  CubeTouchTests
 //
-//  Created by blueken on 2026/04/06.
+//  Created by kanakanho on 2026/04/06.
 //
 
 import Testing
+
 @testable import CubeTouch
 
 struct CubeTouchTests {
