@@ -66,13 +66,13 @@ class CubeHandler {
     // Add audio files with these names to the app bundle.
     private let playerDespawnSoundFiles: [String] = [
         "Bell_Accent01-2(Dry).mp3",
+        "Inspiration07-1(High).mp3",
         "Bell_Accent03-1(Dry).mp3",
+        "Inspiration08-1(Low).mp3",
         "Bell_Accent04-1(High-Dry).mp3",
         "Bell_Accent06-1(Dry).mp3",
         "Bell_Accent16-1(High).mp3",
         "Inspiration02-1(High).mp3",
-        "Inspiration07-1(High).mp3",
-        "Inspiration08-1(Low).mp3",
     ]
 
     var animationPlaybackController: AnimationPlaybackController? = nil
